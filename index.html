@@ -102,6 +102,27 @@ function playDing() {
   }
 }
 
+// 🛎 알림 권한 요청 (최초 1회)
+async function ensureNotificationPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const res = await Notification.requestPermission();
+  return res === 'granted';
+}
+
+// 🛎 알림 보내기 (다른 탭/백그라운드에서도 OS 알림음으로 커버)
+async function showReplyNotification(title, body) {
+  const ok = await ensureNotificationPermission();
+  if (!ok) return;
+  new Notification(title, {
+    body,
+    // icon: '/icon.png', // 아이콘 쓰고 싶으면 public에 넣고 경로 지정
+    // tag: 'reply',      // 같은 tag면 중복 알림 묶기
+    silent: false        // 가능하면 OS 기본 소리 허용(브라우저/OS 정책에 따름)
+  });
+}
+
     // 유틸리티 함수: SHA-256 해시 생성 (비밀번호 보안용)
     const sha256 = async (str) => {
         const buffer = new TextEncoder().encode(str);
@@ -1374,7 +1395,47 @@ const App = () => {
         const [db, setDb] = useState(null);
         const [auth, setAuth] = useState(null);
         const [currentUserId, setCurrentUserId] = useState(getInitialActiveUser());
-        const [posts, setPosts] = useState([]);
+
+// 👇 여기부터 추가
+const seenIdsRef = useRef(new Set());
+
+useEffect(() => {
+  if (seenIdsRef.current.size === 0 && posts.length > 0) {
+    posts.forEach(p => seenIdsRef.current.add(p.id));
+    return;
+  }
+
+  const newly = posts.filter(p => !seenIdsRef.current.has(p.id));
+  if (newly.length === 0) return;
+
+const myHandle = currentUserProfile?.handle?.toLowerCase();
+const myId = currentUserId;
+
+  const isTargetReply = (p) => {
+    const isReply = !!p.replyToId;
+    const fromOthers = p.authorId !== myId;
+    const mentionsMe = myHandle
+      ? (p.content || '').toLowerCase().includes(`@${myHandle}`)
+      : false;
+    return isReply && fromOthers && (mentionsMe || true);
+  };
+
+  const hit = newly.find(isTargetReply);
+  if (hit) {
+    if (document.hidden) {
+      // 다른 탭/백그라운드 → OS 알림
+      showReplyNotification(
+        '새 답글이 도착했어요',
+        `@${hit.authorHandle}: ${(hit.content || '').slice(0, 80)}`
+      );
+    } else {
+      // 현재 탭 → 소리
+      playDing();
+    }
+  }
+
+  newly.forEach(p => seenIdsRef.current.add(p.id));
+}, [posts]);
         const [isLoading, setIsLoading] = useState(true);
         const [activeGroup, setActiveGroup] = useState(MOCK_GROUPS[0].id);
         const [newPostId, setNewPostId] = useState(null); 
@@ -2434,7 +2495,3 @@ const App = () => {
 
 </body>
 </html>
-
-
-
-
