@@ -59,7 +59,49 @@
 
 <script type="text/babel">
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
-    
+// 🔔 안전한 "띵" 소리 (전역 유틸: 어디서든 호출 가능)
+function getAudioCtx() {
+  try {
+    if (window.__dingCtx) return window.__dingCtx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && ctx.state !== 'running') {
+        ctx.resume().catch(() => {});
+      }
+    });
+    window.__dingCtx = ctx;
+    return ctx;
+  } catch {
+    return null;
+  }
+}
+
+function playDing() {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+
+    osc.type = 'sine';                 // 부드러운 순수톤
+    osc.frequency.setValueAtTime(880, now); // A5 (라) = "띵"
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.35);
+  } catch (e) {
+    console.error('playDing error:', e);
+  }
+}
+
     // 유틸리티 함수: SHA-256 해시 생성 (비밀번호 보안용)
     const sha256 = async (str) => {
         const buffer = new TextEncoder().encode(str);
@@ -418,11 +460,15 @@ const MOCK_USERS = [
             color: post.authorColor,
         };
         
-        const handleReplySubmit = (e) => {
-            e.preventDefault();
-            onReply(replyContent, post.id, null, imageUrl.trim()); 
-            onCancel();
-        };
+      const handleReplySubmit = (e) => {
+    e.preventDefault();
+    onReply(replyContent, post.id, null, imageUrl.trim()); 
+
+    // 🔔 소리 재생
+    playDing();
+
+    onCancel();
+};
 
         return (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -1151,13 +1197,17 @@ const MOCK_USERS = [
         };
         
         const handleReplySubmit = (e) => {
-            e.preventDefault();
-            onReply(replyContent, parentId, null, imageUrl.trim()); 
-            const initialContent = !isMainPost && parentAuthorHandle ? `@${parentAuthorHandle} ` : '';
-            setReplyContent(isMainPost ? '' : initialContent);
-            setImageUrl('');
-            setShowImageInput(false);
-        };
+    e.preventDefault();
+    onReply(replyContent, parentId, null, imageUrl.trim()); 
+
+    // 🔔 소리 재생
+    playDing();
+
+    const initialContent = !isMainPost && parentAuthorHandle ? `@${parentAuthorHandle} ` : '';
+    setReplyContent(isMainPost ? '' : initialContent);
+    setImageUrl('');
+    setShowImageInput(false);
+};
 
         if (!currentUserId && !isMainPost) return null; 
 
