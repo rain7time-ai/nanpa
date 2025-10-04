@@ -1644,35 +1644,57 @@ const App = () => {
             }
         }, [currentUserId]);
 
-        useEffect(() => {
-            if (!db || isLoading) return;
-            const postsColRef = collection(db, `/artifacts/${canvasAppId}/public/data/posts`);
-            const q = query(postsColRef);
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                const fetchedPosts = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    timestamp: doc.data().timestamp?.toDate() || new Date(),
-                    threadUpdatedTimestamp: doc.data().threadUpdatedTimestamp?.toDate(),
-                    likes: doc.data().likes || [], 
-                    bookmarks: doc.data().bookmarks || [], 
-                    retweetedPostId: doc.data().retweetedPostId || null,
-                    imageUrl: doc.data().imageUrl || null,
-                    mentions: doc.data().mentions || [],
-                }));
-                
-                // Firestore에서 가져온 데이터를 timestamp 기준으로 한 번 정렬해 줍니다.
-                const sortedPosts = fetchedPosts.sort((a, b) => {
-                    const aTime = a.timestamp.getTime();
-                    const bTime = b.timestamp.getTime();
-                    return bTime - aTime; 
-                });
-                setPosts(sortedPosts);
-            }, (error) => {
-                console.error("Firestore 데이터 불러오기 오류:", error);
-            });
-            return () => unsubscribe();
-        }, [db, isLoading]); 
+// 🔔 최초 스냅샷 무음 플래그
+const initialPostsLoadedRef = React.useRef(false);
+
+useEffect(() => {
+  if (!db || isLoading) return;
+
+  const postsColRef = collection(db, `/artifacts/${canvasAppId}/public/data/posts`);
+  const q = query(postsColRef);
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const fetchedPosts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate() || new Date(),
+        threadUpdatedTimestamp: doc.data().threadUpdatedTimestamp?.toDate(),
+        likes: doc.data().likes || [],
+        bookmarks: doc.data().bookmarks || [],
+        retweetedPostId: doc.data().retweetedPostId || null,
+        imageUrl: doc.data().imageUrl || null,
+        mentions: doc.data().mentions || [],
+      }));
+
+      const sortedPosts = fetchedPosts.sort(
+        (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+      );
+      setPosts(sortedPosts);
+
+      const changes = snapshot.docChanges();
+      if (initialPostsLoadedRef.current) {
+        for (const change of changes) {
+          if (change.type === "added") {
+            const data = change.doc.data();
+            const authorId = data.authorId;
+            if (authorId && authorId !== App.currentUserId) {
+              playDing();
+            }
+          }
+        }
+      } else {
+        initialPostsLoadedRef.current = true;
+      }
+    },
+    (error) => {
+      console.error("Firestore 데이터 불러오기 오류:", error);
+    }
+  );
+
+  return () => unsubscribe();
+}, [db, isLoading]);
 
         const handleReplyClick = useCallback((post) => {
             if (App.currentUserId) {
