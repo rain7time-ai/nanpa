@@ -1673,20 +1673,20 @@ useEffect(() => {
       );
       setPosts(sortedPosts);
 
-      const changes = snapshot.docChanges();
-      if (initialPostsLoadedRef.current) {
-        for (const change of changes) {
-          if (change.type === "added") {
-            const data = change.doc.data();
-            const authorId = data.authorId;
-            if (authorId && authorId !== App.currentUserId) {
-              playDing();
-            }
-          }
-        }
-      } else {
-        initialPostsLoadedRef.current = true;
+      // added 만, 그리고 작성자가 나가 아닐 때만
+const changes = snapshot.docChanges();
+if (initialPostsLoadedRef.current) {
+  for (const change of changes) {
+    if (change.type === 'added') {
+      const data = change.doc.data();
+      if (data.authorId && data.authorId !== App.currentUserId) {
+        playDing();
       }
+    }
+  }
+} else {
+  initialPostsLoadedRef.current = true; // 초기 로드 무음
+}
     },
     (error) => {
       console.error("Firestore 데이터 불러오기 오류:", error);
