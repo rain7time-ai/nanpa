@@ -465,7 +465,6 @@ const MOCK_USERS = [
     onReply(replyContent, post.id, null, imageUrl.trim()); 
 
     // 🔔 소리 재생
-    playDing();
 
     onCancel();
 };
@@ -1201,7 +1200,6 @@ const MOCK_USERS = [
     onReply(replyContent, parentId, null, imageUrl.trim()); 
 
     // 🔔 소리 재생
-    playDing();
 
     const initialContent = !isMainPost && parentAuthorHandle ? `@${parentAuthorHandle} ` : '';
     setReplyContent(isMainPost ? '' : initialContent);
