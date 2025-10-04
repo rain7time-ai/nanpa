@@ -66,19 +66,11 @@ function getAudioCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     const ctx = new AC();
-
-    // 🔊 페이지가 숨겨져도 오디오가 resume 되도록 강제 처리
-    const resumeAudio = () => {
-      if (ctx.state !== 'running') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && ctx.state !== 'running') {
         ctx.resume().catch(() => {});
       }
-    };
-
-    // 사용자가 어떤 이벤트를 하든 소리 컨텍스트 활성화 시도
-    ['click', 'keydown', 'touchstart', 'visibilitychange'].forEach(evt =>
-      document.addEventListener(evt, resumeAudio, true)
-    );
-
+    });
     window.__dingCtx = ctx;
     return ctx;
   } catch {
@@ -473,6 +465,7 @@ const MOCK_USERS = [
     onReply(replyContent, post.id, null, imageUrl.trim()); 
 
     // 🔔 소리 재생
+    playDing();
 
     onCancel();
 };
@@ -1208,6 +1201,7 @@ const MOCK_USERS = [
     onReply(replyContent, parentId, null, imageUrl.trim()); 
 
     // 🔔 소리 재생
+    playDing();
 
     const initialContent = !isMainPost && parentAuthorHandle ? `@${parentAuthorHandle} ` : '';
     setReplyContent(isMainPost ? '' : initialContent);
@@ -1650,56 +1644,22 @@ const App = () => {
             }
         }, [currentUserId]);
 
-// App 컴포넌트 상단
-const initialPostsLoadedRef = React.useRef(false);
-
-// Firestore 구독 useEffect (전체 교체본)
-useEffect(() => {
-  if (!db || isLoading) return;
-  const postsColRef = collection(db, `/artifacts/${canvasAppId}/public/data/posts`);
-  const q = query(postsColRef);
-
-  const unsubscribe = onSnapshot(q, (snapshot) => {
-    // 1) 문서 -> 배열
-    const fetchedPosts = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate() || new Date(),
-      threadUpdatedTimestamp: doc.data().threadUpdatedTimestamp?.toDate(),
-      likes: doc.data().likes || [],
-      bookmarks: doc.data().bookmarks || [],
-      retweetedPostId: doc.data().retweetedPostId || null,
-      imageUrl: doc.data().imageUrl || null,
-      mentions: doc.data().mentions || [],
-    }));
-
-    // 2) 정렬 후 상태 반영
-    const sortedPosts = fetchedPosts.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    setPosts(sortedPosts);
-
-    // 3) "added"만 체크 + "작성자가 나 아님"이면 딩
-    const changes = snapshot.docChanges();
-    if (initialPostsLoadedRef.current) {
-      for (const change of changes) {
-        if (change.type === 'added') {
-          const data = change.doc.data();
-          const authorId = data.authorId;
-          if (authorId && authorId !== App.currentUserId) {
-            playDing();
-          }
-        }
-      }
-    } else {
-      // 첫 스냅샷(기존 글들)은 무음
-      initialPostsLoadedRef.current = true;
-    }
-  }, (error) => {
-    console.error("Firestore 데이터 불러오기 오류:", error);
-  });
-
-  return () => unsubscribe();
-}, [db, isLoading]);
-
+        useEffect(() => {
+            if (!db || isLoading) return;
+            const postsColRef = collection(db, `/artifacts/${canvasAppId}/public/data/posts`);
+            const q = query(postsColRef);
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const fetchedPosts = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    timestamp: doc.data().timestamp?.toDate() || new Date(),
+                    threadUpdatedTimestamp: doc.data().threadUpdatedTimestamp?.toDate(),
+                    likes: doc.data().likes || [], 
+                    bookmarks: doc.data().bookmarks || [], 
+                    retweetedPostId: doc.data().retweetedPostId || null,
+                    imageUrl: doc.data().imageUrl || null,
+                    mentions: doc.data().mentions || [],
+                }));
                 
                 // Firestore에서 가져온 데이터를 timestamp 기준으로 한 번 정렬해 줍니다.
                 const sortedPosts = fetchedPosts.sort((a, b) => {
