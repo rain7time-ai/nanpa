@@ -66,11 +66,19 @@ function getAudioCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     const ctx = new AC();
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && ctx.state !== 'running') {
+
+    // 🔊 페이지가 숨겨져도 오디오가 resume 되도록 강제 처리
+    const resumeAudio = () => {
+      if (ctx.state !== 'running') {
         ctx.resume().catch(() => {});
       }
-    });
+    };
+
+    // 사용자가 어떤 이벤트를 하든 소리 컨텍스트 활성화 시도
+    ['click', 'keydown', 'touchstart', 'visibilitychange'].forEach(evt =>
+      document.addEventListener(evt, resumeAudio, true)
+    );
+
     window.__dingCtx = ctx;
     return ctx;
   } catch {
